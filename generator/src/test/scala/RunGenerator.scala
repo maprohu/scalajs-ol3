@@ -19,9 +19,10 @@ object RunGenerator extends App {
 
 
    Generator.generate(
-     new File("target/generated"),
+     new File("target/generated.scala"),
      doclets,
-     "/home/marci/git/ol3/src/"
+     "global",
+     "util"
    )
 
  }

@@ -5,7 +5,6 @@ import java.io.{File, PrintWriter}
 import jsdocgen._
 import jsdocgen.domain.pickle._
 import jsdocgen.domain.{PackageMember, Doclet, Function, pickle}
-import jsdocgen.generated.Function
 
 import scala.io.Source
 
@@ -18,13 +17,21 @@ object Generator {
     "toString"
   )
 
+  val keyword = Set(
+    "type"
+  )
   def isReserved(name: String) = reserved.contains(name)
-  def id(from: String) = if (isReserved(from)) from + "_" else from
+
+  def id(from: String) =
+    if (isReserved(from)) from + "_"
+    else if (keyword.contains(from)) s"`$from`"
+    else from
 
   def generate(
     target: File,
     docletsFile: File,
-    stripPrefix : String
+    rootPackage : String,
+    utilPackage : String
   ) : Seq[File] = {
     println("reading json: " + docletsFile)
     val doclets = {
@@ -35,252 +42,265 @@ object Generator {
     generate(
       target,
       doclets,
-      stripPrefix
+      rootPackage,
+      utilPackage
     )
   }
 
   def generate(
-    target: File,
+    targetFile: File,
     doclets: Seq[Doclet],
-    stripPrefix : String
+    rootPackage : String,
+    utilPackage : String
   ) : Seq[File] = {
 
-
-    val namespaceLongnames = doclets
+    val namespaces = doclets
       .collect({
-        case d : domain.Namespace => d.longname
-      })
-      .toSet
-
-    trait GeneratedFile {
-      def getFile : File
-      def path : Seq[String]
-    }
-
-    trait Namespaced {
-      def name : String
-      def path : Seq[String]
-      def namespace : Seq[String]
-    }
-
-    class DefaultNamespaced(
-      val name : String,
-      val path: Seq[String],
-      val namespace: Seq[String]
-    ) extends Namespaced {
-      def this(d: PackageMember) = this(
-        d.name,
-        namespace = d.memberof.split('.'),
-        path = (d.meta.path.substring(stripPrefix.length).split('/') :+ stripExtension(d.meta.filename))
-      )
-    }
-
-
-    trait PackageFunction extends Namespaced {
-
-    }
-
-    trait GeneratedClass extends Namespaced {
-      def fullname : String
-
-    }
-
-    def stripExtension(filename: String) = {
-      val idx = filename.lastIndexOf('.')
-      if (idx == -1) filename else filename.substring(0, idx)
-    }
-
-
-    val packageFunctions : Seq[PackageFunction] = doclets
-      .collect({
-        case d : domain.Function if namespaceLongnames.contains(d.memberof) => new DefaultNamespaced(d) with PackageFunction
+        case d : domain.Namespace => d
       })
 
-    val generatedClasses : Seq[GeneratedClass] = doclets
+    val functions = doclets
       .collect({
-        case d : domain.Class if namespaceLongnames.contains(d.memberof) => new DefaultNamespaced(d) with GeneratedClass {
-          override def fullname: String = d.longname
-        }
-
+        case d : domain.Function => d
       })
 
-    val generatedFiles = packageFunctions
-      .map(_.path)
-      .toSet
+    val classes = doclets
+      .collect({
+        case d : domain.Class => d
+      })
 
-    val pfByPath = packageFunctions.groupBy(_.path).withDefaultValue(Seq())
-    val classByPath = generatedClasses.groupBy(_.path).withDefaultValue(Seq())
+    val typedefs = doclets
+      .collect({
+        case d : domain.Typedef => d
+      })
+
+    val members = doclets
+      .collect({
+        case d : domain.Member => d
+      })
+
+    val namespaceByParent = namespaces.groupBy(_.memberof).withDefaultValue(Seq())
+    val functionByParent = functions.groupBy(_.memberof).withDefaultValue(Seq())
+    val classByParent = classes.groupBy(_.memberof).withDefaultValue(Seq())
+    val typedefByParent = typedefs.groupBy(_.memberof).withDefaultValue(Seq())
+    val memberByParent = members.groupBy(_.memberof).withDefaultValue(Seq())
+
+    targetFile.getParentFile.mkdirs()
+    val out = new PrintWriter(targetFile)
+
+    val builtins = Map(
+      "string" -> "String"
+    )
+    def resolve(name: String) : String =
+      builtins
+        .get(name)
+        .getOrElse("scala.scalajs.js.Any")
+
+    def resolveUnion(t: domain.Type) : Set[String] =
+      t.names.map(n => resolve(n)).toSet
+
+    def resolveType(name: domain.Type) : String =
+      resolve(name.names(0))
+
+    def resolveMember(name: domain.Member) : String = {
+      val types = resolveUnion(name.`type`)
+      if (types.size > 1)
+        s"${utilPackage}.implicits.`${name.longname}`"
+      else
+        types.toSeq.headOption
+          .getOrElse("scala.scalajs.js.Any")
+    }
+
+    def resolveReturn(ret: Option[domain.Return]) : String =
+      ret
+        .map(name => resolveType(name.`type`))
+        .getOrElse("Unit")
 
 
-    generatedFiles.toSeq.map { gf =>
-      val f = new File(target, gf.mkString("/") + ".scala")
-      f.getParentFile.mkdirs()
-      val out = new PrintWriter(f)
 
-      val pfByNamespace =  pfByPath(gf).groupBy(_.namespace).withDefaultValue(Seq())
-      val classByNamespace =  classByPath(gf).groupBy(_.namespace).withDefaultValue(Seq())
+    def indent(str: String, level: Int) : String = {
+      str.split('\n').map(("  " * level) + _).mkString("\n")
+    }
 
-      val namespaces = pfByNamespace.keySet ++ classByNamespace.keySet
+    def writeout(str: String, level: Int = 0) = out.println(indent(str, level))
 
-      namespaces.foreach { ns =>
+    def writeStatics(nsName: String, level: Int) : Unit = {
 
-        val defs = pfByNamespace(ns)
-          .map({pf =>
-            val funDef = s"    def ${id(pf.name)} : Unit = scala.scalajs.js.native"
-            (if (isReserved(pf.name))
-              s"""    @scala.scalajs.js.annotation.JSName("${pf.name}")""" + "\n"
-            else "") + funDef
-          })
+      def write(str: String) = writeout(str, level)
 
-        val packageObject = {
-          if (defs.isEmpty) "" else
-            s"""
-               |  @scala.scalajs.js.annotation.JSName("${ns.mkString(".")}")
-               |  @scala.scalajs.js.native
-               |  object ${ns.last} extends scala.scalajs.js.Object {
-               |${defs.mkString("\n")}
-               |  }
-             """.stripMargin
-        }
+      write("")
 
+      for {
+        fn <- functionByParent(nsName)
+      } {
+        if (isReserved(fn.name))
+          write(s"""@scala.scalajs.js.annotation.JSName("${fn.name}")""")
+        write(s"def ${id(fn.name)}(")
 
-        val classes = classByNamespace(ns)
-          .map({ cl =>
-            s"""
-               |  @scala.scalajs.js.annotation.JSName("${cl.fullname}")
-               |  @scala.scalajs.js.native
-               |  class ${cl.name} extends scala.scalajs.js.Object {
-               |  }
-             """.stripMargin
-          })
-          .mkString("\n")
-
-        val packagePath = ns.init
-        if (packagePath.isEmpty) {
-          out.write(packageObject)
-          out.write(classes)
-        }
-        else out.write(
-          s"""
-             |package ${packagePath.mkString(".")} {
-             |$packageObject
-             |$classes
-             |}
-           """.stripMargin
+        write(
+          (for { p <- fn.params } yield {
+            s"  ${id(p.name)} : scala.scalajs.js.UndefOr[${resolveType(p.`type`)}] = scala.scalajs.js.undefined"
+          }).mkString(",\n")
         )
+        write(s") : ${resolveReturn(fn.returns)} = scala.scalajs.js.native")
+        write("")
       }
 
-      out.close()
-      f
+    }
+    def writeNamespace(nsName: String, level: Int) : Unit = {
+
+      def write(str: String) = writeout(str, level)
+
+      write("")
+
+      for {
+        cl <- classByParent(nsName)
+      } {
+        write("@scala.scalajs.js.native")
+        write(s"class ${cl.name} extends scala.scalajs.js.Object {")
+
+        if (!cl.params.isEmpty) {
+          write("  def this(")
+          write(
+            cl.params.map({ param =>
+              s"    ${id(param.name)} : scala.scalajs.js.Any"
+            }).mkString(",\n")
+          )
+          write("  ) = this()")
+        }
+
+        write(s"}")
+        write("")
+      }
+
+      for {
+        td <- typedefByParent(nsName)
+      } {
+        write("@scala.scalajs.js.native")
+        write(s"trait ${td.name} extends scala.scalajs.js.Object {")
+
+        val mems = memberByParent(td.longname)
+
+        for {
+          m <- mems
+        } {
+          if (isReserved(m.name))
+            write(s"""@scala.scalajs.js.annotation.JSName("${m.name}")""")
+
+          write(s"  var ${id(m.name)} : ${resolveMember(m)} = scala.scalajs.js.native")
+        }
+
+        write(s"}")
+
+        write("")
+      }
+
+      for {
+        ns <- namespaceByParent(nsName)
+      } {
+        write("@scala.scalajs.js.native")
+        write(s"object ${ns.name} extends scala.scalajs.js.Object {")
+
+        writeStatics(ns.longname, level+1)
+        writeNamespace(ns.longname, level+1)
+
+        write(s"}")
+        write("")
+      }
+
+
     }
 
+    def writeUtilNamespace(nsName: String, level: Int) : Unit = {
+
+      def write(str: String) = writeout(str, level)
+
+      write("")
+
+      for {
+        td <- typedefByParent(nsName)
+      } {
+
+        val mems = memberByParent(td.longname)
+
+        write(s"object ${td.name} {")
+        write(s"  def apply(")
+        write(
+          (for { m <- mems } yield {
+            s"    ${id(m.name)} : scala.scalajs.js.UndefOr[${resolveMember(m)}] = scala.scalajs.js.undefined"
+          }).mkString(",\n")
+        )
+        write(s"  ) = scala.scalajs.js.Dynamic.literal(")
+        write(
+          (for { m <- mems } yield {
+            s"""    "${m.name}" -> ${id(m.name)}"""
+          }).mkString(",\n")
+        )
+        write(s"  ).asInstanceOf[${rootPackage}.${td.longname}]")
+
+        write(s"}")
+
+
+        write("")
+      }
+
+      for {
+        ns <- namespaceByParent(nsName)
+      } {
+        write(s"package ${ns.name} {")
+
+        writeUtilNamespace(ns.longname, level+1)
+
+        write(s"}")
+        write("")
+      }
+
+
+    }
+
+    writeout(s"package ${rootPackage} {")
+
+    writeout(s"  @scala.scalajs.js.native")
+    writeout(s"  object globals extends scala.scalajs.js.GlobalScope {")
+    writeStatics("", 2)
+    writeout(s"  }")
+
+    writeNamespace("", 1)
+    writeout(s"}")
+
+    writeout(s"package ${utilPackage} {")
+    writeUtilNamespace("", 1)
+
+    writeout(s"  object implicits {")
+
+    for {
+      td <- typedefs
+      m <- memberByParent(td.longname)
+      union = resolveUnion(m.`type`)
+      if union.size > 1
+    } {
+      writeout(s"    @scala.scalajs.js.native")
+      writeout(s"    trait `${m.longname}` extends scala.scalajs.js.Any")
+
+      for {
+        t <- union
+      } {
+        writeout(s"    implicit def `$t -> ${m.longname}`(v: $t) = v.asInstanceOf[`${m.longname}`]")
+        writeout(s"    implicit def `$t -> UndefOr ${m.longname}`(v: $t) = v.asInstanceOf[scala.scalajs.js.UndefOr[`${m.longname}`]]")
+      }
+
+
+    }
+
+    writeout(s"  }")
+
+    writeout(s"}")
+
+    out.close()
+    Seq(targetFile)
 
   }
 
-//
-//    def directory(path: String) : Option[jsdocgen.generated.Directory] = {
-//      val elems = path.substring(stripPrefix.length).split('/')
-//      elems.foldLeft(Option.empty[jsdocgen.generated.Directory])((p, n) => Some(generated.Directory(n, p)))
-//    }
-//
-//    def sourceFile(path: String, filename: String) : jsdocgen.generated.SourceFile = {
-//      val scalaFileName = filename.substring(0, filename.lastIndexOf('.'))
-//      generated.SourceFile(scalaFileName, directory(path))
-//    }
-//
-//    def namespace(elems: Seq[String]) : Option[jsdocgen.generated.Package] = {
-//      elems.foldLeft(Option.empty[jsdocgen.generated.Package])((p, n) => Some(generated.Package(n , p)))
-//    }
-//
-//    def generatedObject(path: String, filename: String, memberof: String) : jsdocgen.generated.Object = {
-//      val elems = memberof.split('.')
-//
-//      generated.Object(
-//        elems.last,
-//        namespace(elems.init),
-//        sourceFile(path, filename)
-//      )
-//    }
-//
-//    val longname = doclets
-//      .collect({case ns:domain.Named => (ns.longname, ns)})
-//      .toMap
-//
-//    val objectMembers = doclets
-//      .collect({
-//        case d : domain.ObjectMember => d
-//      })
-//
-//    val namespaceMember
-//
-//
-//    val members = doclets.collect {
-//      case f : domain.Function if f.scope == "static" && namespaceMap.contains(f.memberof) => generated.Function(
-//        f.name,
-//        generatedObject(
-//          f.meta.path,
-//          f.meta.filename,
-//          f.memberof
-//        )
-//      )
-//    }
-//
-//    def dir(directory: Option[jsdocgen.generated.Directory]) : File = {
-//      directory.map(d => new File(dir(d.parent), d.name)).getOrElse(target)
-//    }
-//
-//    def pkg(ns: jsdocgen.generated.Package) : String = {
-//      ns.parent.map(p => pkg(p) + ".").getOrElse("") + ns.name
-//    }
-//    def pkgOpt(ns: Option[jsdocgen.generated.Package]) : String = {
-//      ns.map(n => pkgOpt(n.parent) + "." + n.name).getOrElse("_root_")
-//    }
-//
-//    val fs = members
-//      .groupBy(_.container.sourceFile)
-//      .map { case (sourceFile, member) =>
-//        val d = dir(sourceFile.directory)
-//        d.mkdirs()
-//        val f: File = new File(d, sourceFile.baseName + ".scala")
-//        val out = new PrintWriter(f)
-//
-//        member
-//          .groupBy(_.container.namespace)
-//          .foreach { case (ns, nsmembers) =>
-//
-//
-//            val objs = nsmembers
-//              .groupBy(_.container)
-//              .map { case (o, fs) =>
-//                val functions = fs.collect {
-//                  case m : generated.Function => s"    def ${id(m.name)} = scala.scalajs.js.native"
-//                }
-//
-//                s"""
-//                   |  @scala.scalajs.js.native
-//                   |  object ${o.name} extends scala.scalajs.js.Object {
-//                   |${functions.mkString("\n")}
-//                   |  }
-//               """.stripMargin
-//              }
-//
-//            out.write(
-//              s"""
-//                 |package ${pkg(ns.getOrElse(generated.Package("_error_", None)))} {
-//                 |${objs.mkString("\n")}
-//                 |}
-//               """.stripMargin
-//            )
-//          }
-//
-//        out.close()
-//
-//        f
-//      }
-//
-//    fs.toList
-//  }
 
 }
-
 

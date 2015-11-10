@@ -13,29 +13,42 @@ trait PackageMember {
   def name: String
   def memberof : String
   def meta: Meta
+  def longname: String
 }
 
 
 @key("function") case class Function(
   name: String,
-  memberof: String,
+  memberof: String = "",
   scope: String,
   meta: Meta,
-  params: Seq[Param] = Seq()
+  longname: String,
+  params: Seq[Param] = Seq(),
+  returns: Option[Return] = None
 ) extends Doclet with PackageMember
 
 case class Param(
   `type`: Type,
   name: String
+)
 
+case class Return(
+  `type`: Type
 )
 
 case class Type(
   names: Seq[String]
-
 )
+
+object UnknownType extends Type(
+  names = Seq("unknown")
+)
+
 @key("member") case class Member(
-  name: String
+  name: String,
+  longname: String,
+  memberof: String = "",
+  `type`: Type = UnknownType
 ) extends Doclet
 
 @key("namespace") case class Namespace(
@@ -46,13 +59,17 @@ case class Type(
 
 @key("class") case class Class(
   name: String,
-  memberof: String,
+  memberof: String = "",
   scope: String,
   longname: String,
-  meta : Meta
+  meta : Meta,
+  params: Seq[Param] = Seq()
 ) extends Doclet with PackageMember
 
 @key("typedef") case class Typedef(
+  name: String,
+  longname: String,
+  memberof: String = ""
 ) extends Doclet
 
 @key("event") case class Event(
@@ -65,6 +82,9 @@ case class Type(
 ) extends Doclet
 
 @key("package") case class Package(
+) extends Doclet
+
+@key("file") case class File(
 ) extends Doclet
 
 object pickle extends upickle.AttributeTagged {
