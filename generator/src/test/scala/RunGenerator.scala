@@ -19,10 +19,8 @@ object RunGenerator extends App {
 
 
    Generator.generate(
-     new File("target/generated.scala"),
-     doclets,
-     "global",
-     "util"
+     new File("target/generated"),
+     doclets
    )
 
  }

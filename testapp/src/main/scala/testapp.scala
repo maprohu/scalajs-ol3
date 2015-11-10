@@ -1,8 +1,8 @@
 
 import ol3.ol.source.MapQuest
-import ol3u.olx.ViewOptions
-import ol3u.olx.layer.TileOptions
-import ol3u.olx.source.MapQuestOptions
+import ol3.olx.ViewOptions
+import ol3.olx.layer.TileOptions
+import ol3.olx.source.MapQuestOptions
 
 import scala.scalajs.js
 import scala.scalajs.js._
@@ -20,9 +20,9 @@ object TestApp extends JSApp {
 
   @JSExport
   override def main(): Unit = {
-    import ol3u.implicits._
+    import ol3.implicits._
 
-    new ol.Map(ol3u.olx.MapOptions(
+    new ol.Map(olx.MapOptions(
       target = "map",
       layers = js.Array(
         new ol.layer.Tile(TileOptions(
@@ -32,7 +32,7 @@ object TestApp extends JSApp {
         ))
       ),
       view = new ol.View(ViewOptions(
-        center = ol.proj.fromLonLat(js.Array(37, 8)),
+        center = ol.proj.pkg.fromLonLat(js.Array(37, 8)),
         zoom = 4.asInstanceOf[js.Any]
       ))
     ))

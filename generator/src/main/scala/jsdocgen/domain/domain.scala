@@ -9,17 +9,21 @@ case class Meta(
 
 sealed trait Doclet
 
-trait PackageMember {
-  def name: String
+trait HasParent {
   def memberof : String
+}
+
+trait PackageMember extends HasParent {
+  def name: String
   def meta: Meta
   def longname: String
 }
 
 
+
 @key("function") case class Function(
   name: String,
-  memberof: String = "",
+  memberof: String = null,
   scope: String,
   meta: Meta,
   longname: String,
@@ -47,19 +51,19 @@ object UnknownType extends Type(
 @key("member") case class Member(
   name: String,
   longname: String,
-  memberof: String = "",
+  memberof: String = null,
   `type`: Type = UnknownType
-) extends Doclet
+) extends Doclet with HasParent
 
 @key("namespace") case class Namespace(
   name: String,
   longname: String,
-  memberof: String = ""
+  memberof: String = null
 ) extends Doclet
 
 @key("class") case class Class(
   name: String,
-  memberof: String = "",
+  memberof: String = null,
   scope: String,
   longname: String,
   meta : Meta,
@@ -69,8 +73,8 @@ object UnknownType extends Type(
 @key("typedef") case class Typedef(
   name: String,
   longname: String,
-  memberof: String = ""
-) extends Doclet
+  memberof: String = null
+) extends Doclet with HasParent
 
 @key("event") case class Event(
 ) extends Doclet

@@ -14,7 +14,9 @@ object JsdocPlugin extends AutoPlugin {
 
     lazy val jsdocDocletsFile = settingKey[File]("jsdoc-docletsfile")
 
-    lazy val jsdocGlobalScope = settingKey[String]("jsdoc-globalscope")
+    lazy val jsdocImplicits = settingKey[Seq[String]]("jsdoc-implicits")
+
+    lazy val jsdocGlobalScope = settingKey[Seq[String]]("jsdoc-globalscope")
 
     lazy val jsdocUtilScope = settingKey[String]("jsdoc-utilscope")
 
@@ -24,15 +26,17 @@ object JsdocPlugin extends AutoPlugin {
   import autoImport._
 
   lazy val baseNonameSettings: Seq[sbt.Def.Setting[_]] = Seq(
-    jsdocTarget := (sourceManaged in Compile).value / "jsdocgen.scala",
-    jsdocGlobalScope := "global",
-    jsdocUtilScope := "util",
+    jsdocTarget := (sourceManaged in Compile).value / "jsdocgen",
+    jsdocGlobalScope := Seq("jsdocgen"),
+    jsdocUtilScope := "pkg",
+    jsdocImplicits := Seq("implicits"),
     jsdocGenerate := {
-      Generator.generate(
+      Generator.generateFile(
         jsdocTarget.value,
         jsdocDocletsFile.value,
         jsdocGlobalScope.value,
-        jsdocUtilScope.value
+        jsdocUtilScope.value,
+        jsdocImplicits.value
       )
     }
   )
