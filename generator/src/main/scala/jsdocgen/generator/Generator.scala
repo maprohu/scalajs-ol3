@@ -12,6 +12,10 @@ import scala.io.Source
  * Created by marci on 08-11-2015.
  */
 object Generator {
+  val libPackage = "jsdocgen.lib"
+  val unionClass = libPackage + ".Union"
+  val unionImplClass = libPackage + ".UnionImpl"
+
   val reserved = Set(
     "clone",
     "toString"
@@ -32,7 +36,7 @@ object Generator {
     docletsFile: File,
     rootPackage : Seq[String] = Seq("jsdocgen"),
     utilPackage : String = "pkg",
-    implicits : Seq[String] = Seq("impliicts")
+    implicits : Seq[String] = Seq("implicits")
   ) : Seq[File] = {
     println("reading json: " + docletsFile)
     val doclets = {
@@ -54,7 +58,7 @@ object Generator {
     doclets: Seq[Doclet],
     rootPackage : Seq[String] = Seq("jsdocgen"),
     utilPackage : String = "pkg",
-    implicits : Seq[String] = Seq("impliicts")
+    implicits : Seq[String] = Seq("implicits")
   ) : Seq[File] = {
 
     val namespaces = doclets
@@ -88,17 +92,14 @@ object Generator {
     val parentProp = (o:HasParent) =>
       packageList(o.memberof)
 
-//    val namespaceByParent = namespaces.groupBy(_.memberof).withDefaultValue(Seq())
     val functionByParent = functions.groupBy(parentProp).withDefaultValue(Seq())
     val classByParent = classes.groupBy(parentProp).withDefaultValue(Seq())
     val typedefByParent = typedefs.groupBy(parentProp).withDefaultValue(Seq())
     val memberByParent = members.groupBy(parentProp).withDefaultValue(Seq())
 
-//    targetFile.getParentFile.mkdirs()
-//    val out = new PrintWriter(targetFile)
-
     val builtins = Map(
-      "string" -> "String"
+      "string" -> "String",
+      "number" -> "Double"
     )
     def resolve(name: String) : String =
       builtins
@@ -233,14 +234,13 @@ object Generator {
       } {
         val name = unionTypeName(union)
 
-//        write(s"@scala.scalajs.js.native")
-        write(s"trait $name")
+        write(s"trait $name extends $unionClass")
 
         for {
           t <- union
         } {
-          write(s"implicit def `$t -> ${name.tail}(v: $t) = v.asInstanceOf[$name]")
-          write(s"implicit def `$t -> UndefOr ${name.tail}(v: $t) = v.asInstanceOf[scala.scalajs.js.UndefOr[$name]]")
+          write(s"implicit def `$t -> ${name.tail}(v: $t) = new ${unionImplClass}(v) with $name")
+          write(s"implicit def `$t -> UndefOr ${name.tail}(v: $t) : scala.scalajs.js.UndefOr[$name] = new ${unionImplClass}(v) with $name")
         }
 
 
@@ -250,142 +250,8 @@ object Generator {
     }
 
 
-//    def writeNamespace(nsName: String, out: Out) : Unit = {
-//
-//      def write(str: String) = out.write(str)
-//
-//      write("")
-//
-//      for {
-//        cl <- classByParent(nsName)
-//      } {
-//      }
-//
-//      for {
-//        td <- typedefByParent(nsName)
-//      } {
-//      }
-//
-//      for {
-//        ns <- namespaceByParent(nsName)
-//      } {
-//        write("@scala.scalajs.js.native")
-//        write(s"object ${ns.name} extends scala.scalajs.js.Object {")
-//
-//        writeStatics(ns.longname, level+1)
-//        writeNamespace(ns.longname, level+1)
-//
-//        write(s"}")
-//        write("")
-//      }
-//
-//
-//    }
-
-//    def writeUtilNamespace(nsName: String, level: Int) : Unit = {
-//
-//      def write(str: String) = writeout(str, level)
-//
-//      write("")
-//
-//      for {
-//        td <- typedefByParent(nsName)
-//      } {
-//
-//        val mems = memberByParent(td.longname)
-//
-//        write(s"object ${td.name} {")
-//        write(s"  def apply(")
-//        write(
-//          (for { m <- mems } yield {
-//            s"    ${id(m.name)} : scala.scalajs.js.UndefOr[${resolveMember(m)}] = scala.scalajs.js.undefined"
-//          }).mkString(",\n")
-//        )
-//        write(s"  ) = scala.scalajs.js.Dynamic.literal(")
-//        write(
-//          (for { m <- mems } yield {
-//            s"""    "${m.name}" -> ${id(m.name)}"""
-//          }).mkString(",\n")
-//        )
-//        write(s"  ).asInstanceOf[${rootPackage}.${td.longname}]")
-//
-//        write(s"}")
-//
-//
-//        write("")
-//      }
-//
-//      for {
-//        ns <- namespaceByParent(nsName)
-//      } {
-//        write(s"package ${ns.name} {")
-//
-//        writeUtilNamespace(ns.longname, level+1)
-//
-//        write(s"}")
-//        write("")
-//      }
-//
-//
-//    }
-
-//    writeout(s"package ${rootPackage} {")
-//
-//    writeout(s"  @scala.scalajs.js.native")
-//    writeout(s"  object globals extends scala.scalajs.js.GlobalScope {")
-//    writeStatics("", 2)
-//    writeout(s"  }")
-//
-//    writeNamespace("", 1)
-//    writeout(s"}")
-//
-//    writeout(s"package ${utilPackage} {")
-//    writeUtilNamespace("", 1)
-//
-//    writeout(s"  object implicits {")
-//
-//    for {
-//      td <- typedefs
-//      m <- memberByParent(td.longname)
-//      union = resolveUnion(m.`type`)
-//      if union.size > 1
-//    } {
-//      writeout(s"    @scala.scalajs.js.native")
-//      writeout(s"    trait `${m.longname}` extends scala.scalajs.js.Any")
-//
-//      for {
-//        t <- union
-//      } {
-//        writeout(s"    implicit def `$t -> ${m.longname}`(v: $t) = v.asInstanceOf[`${m.longname}`]")
-//        writeout(s"    implicit def `$t -> UndefOr ${m.longname}`(v: $t) = v.asInstanceOf[scala.scalajs.js.UndefOr[`${m.longname}`]]")
-//      }
-//
-//
-//    }
-//
-//    writeout(s"  }")
-//
-//    writeout(s"}")
-//
-//    out.close()
-//    Seq(targetFile)
-//
-//
-//    for {
-//      cl <- classByParent(nsName)
-//    } {
-//    }
-//
-//    for {
-//      td <- typedefByParent(nsName)
-//    } {
-//    }
-
     def packageJoin(pkg: Seq[String]) =
       (rootPackage ++ pkg).mkString(".")
-
-//    def packageName(pkg: String) =
-//      (rootPackage ++ pkg.split('.')).mkString(".")
 
     def sourceFile(longname: String) = {
       val path = rootPackage ++ longname.split('.')

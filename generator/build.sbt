@@ -1,6 +1,5 @@
 
 val commonSettings = Seq(
-  scalaVersion := "2.10.6",
   organization := "com.github.maprohu",
   version := "0.1.0"
 )
@@ -8,6 +7,7 @@ val commonSettings = Seq(
 lazy val generator = (project in file("."))
   .settings(commonSettings)
   .settings(
+    scalaVersion := "2.10.6",
     sbtPlugin := true,
     name := "generator-plugin",
     libraryDependencies ++= Seq(
@@ -16,4 +16,5 @@ lazy val generator = (project in file("."))
     )
 
   )
+
 
