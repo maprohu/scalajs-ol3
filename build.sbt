@@ -15,6 +15,9 @@ lazy val facade = project
     sourceGenerators in Compile += jsdocGenerate.taskValue,
     jsDependencies ++= Seq(
       "org.webjars" % "openlayers" % "3.10.1" / "webjars/openlayers/3.10.1/ol-debug.js" minified "webjars/openlayers/3.10.1/ol.js"
+    ),
+    libraryDependencies ++= Seq(
+      "org.scala-js" %%% "scalajs-dom" % "0.8.0"
     )
 
   )

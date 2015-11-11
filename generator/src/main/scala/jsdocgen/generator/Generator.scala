@@ -15,6 +15,7 @@ object Generator {
   val libPackage = "jsdocgen.lib"
   val unionClass = libPackage + ".Union"
   val unionImplClass = libPackage + ".UnionImpl"
+  val undefinedObject = libPackage + ".undefined"
 
   val reserved = Set(
     "clone",
@@ -98,20 +99,29 @@ object Generator {
     val memberByParent = members.groupBy(parentProp).withDefaultValue(Seq())
 
     val builtins = Map(
-      "string" -> "String",
-      "number" -> "Double"
+      "string" -> Set("java.lang.String"),
+      "number" -> Set("scala.Byte", "scala.Short", "scala.Int", "scala.Float", "scala.Double"),
+      "Element" -> Set("org.scalajs.dom.raw.Element"),
+      "undefined" -> Set(undefinedObject+".type")
     )
-    def resolve(name: String) : String =
+
+    def resolve(name: String) : Set[String] =
       builtins
         .get(name)
-        .getOrElse("scala.scalajs.js.Any")
+        .getOrElse(Set("scala.scalajs.js.Any"))
 
-    def resolveUnion(t: domain.Type) : Set[String] =
-      t.names.map(n => resolve(n)).toSet
+    def resolveUnion(t: domain.Type) : Set[String] = {
+      t.names.flatMap(n => resolve(n)).toSet
+    }
 
     def unionTypeName(names: Set[String]) = names.toSeq.sorted.mkString("`", "|", "`")
 
     def unionTypeRef(ref: String) = (rootPackage ++ implicits :+ ref).mkString(".")
+
+
+    def isOptional(name: domain.Type) : Boolean = {
+      name.names.contains("undefined")
+    }
 
     def resolveType(name: domain.Type) : String = {
       val types = resolveUnion(name)
@@ -150,7 +160,8 @@ object Generator {
 
         write(
           (for { p <- fn.params } yield {
-            s"  ${id(p.name)} : scala.scalajs.js.UndefOr[${resolveType(p.`type`)}] = scala.scalajs.js.undefined"
+//            s"  ${id(p.name)} : scala.scalajs.js.UndefOr[${resolveType(p.`type`)}] = scala.scalajs.js.undefined"
+            s"    ${id(p.name)} : ${resolveType(p.`type`)}" + (if (isOptional(p.`type`)) " = " + undefinedObject else "")
           }).mkString(",\n")
         )
         write(s") : ${resolveReturn(fn.returns)} = scala.scalajs.js.native")
@@ -202,7 +213,8 @@ object Generator {
       write(s"  def apply(")
       write(
         (for { m <- mems } yield {
-          s"    ${id(m.name)} : scala.scalajs.js.UndefOr[${resolveType(m.`type`)}] = scala.scalajs.js.undefined"
+//          s"    ${id(m.name)} : scala.scalajs.js.UndefOr[${resolveType(m.`type`)}] = scala.scalajs.js.undefined"
+          s"    ${id(m.name)} : ${resolveType(m.`type`)}" + (if (isOptional(m.`type`)) " = " + undefinedObject else "")
         }).mkString(",\n")
       )
       write(s"  ) = scala.scalajs.js.Dynamic.literal(")
@@ -219,7 +231,7 @@ object Generator {
     def writeImplicits(out: Out): Unit = {
       import out.write
 
-      val unions = for {
+      val memberUnions = for {
         ns <- namespaces
         td <- typedefByParent(ns)
         m <- memberByParent(td.longname.split('.'))
@@ -227,12 +239,24 @@ object Generator {
         if union.size > 1
       } yield union
 
-      val unionSet = unions.toSet
+      val staticUnions = for {
+        ns <- namespaces
+        td <- functionByParent(ns)
+        p <- td.params
+        union = resolveUnion(p.`type`)
+        if union.size > 1
+      } yield union
+
+      val unionSet = memberUnions.toSet ++ staticUnions.toSet
 
       for {
         union <- unionSet
       } {
         val name = unionTypeName(union)
+
+//        val types = resolveUnion(name)
+//        if (types.size > 1)
+//          unionTypeRef(unionTypeName(types))
 
         write(s"trait $name extends $unionClass")
 
@@ -240,7 +264,7 @@ object Generator {
           t <- union
         } {
           write(s"implicit def `$t -> ${name.tail}(v: $t) = new ${unionImplClass}(v) with $name")
-          write(s"implicit def `$t -> UndefOr ${name.tail}(v: $t) : scala.scalajs.js.UndefOr[$name] = new ${unionImplClass}(v) with $name")
+//          write(s"implicit def `$t -> UndefOr ${name.tail}(v: $t) : scala.scalajs.js.UndefOr[$name] = new ${unionImplClass}(v) with $name")
         }
 
 

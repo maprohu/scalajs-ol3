@@ -23,7 +23,7 @@ object TestApp extends JSApp {
     import ol3.implicits._
 
     new ol.Map(olx.MapOptions(
-      target = "map",
+      target = dom.document.getElementById("map"),
       layers = js.Array(
         new ol.layer.Tile(TileOptions(
           source = new MapQuest(MapQuestOptions(
