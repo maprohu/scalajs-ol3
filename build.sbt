@@ -4,6 +4,7 @@ val openlayersVersion = "3.10.1"
 val commonSettings = Seq(
   organization := "com.github.maprohu",
   version := "0.1.0-SNAPSHOT",
+  resolvers += Resolver.sonatypeRepo("snapshots"),
 
   scalaVersion := "2.11.7",
   publishMavenStyle := true,
@@ -33,13 +34,13 @@ val commonSettings = Seq(
 )
 
 val noPublish = Seq(
-  publishArtifact := false
+  publishArtifact := false,
+  publishTo := Some(Resolver.file("Unused transient repository", file("target/unusedrepo")))
 )
 
 lazy val facade = project
   .settings(commonSettings)
   .enablePlugins(JsdocPlugin, ScalaJSPlugin)
-//  .dependsOn(jsdocgenLib)
   .settings(
     publishArtifact in (Compile, packageDoc) := false,
     name := "scalajs-ol3",
@@ -74,8 +75,6 @@ lazy val testapp = project
     )
 
   )
-
-//lazy val jsdocgenLib = ProjectRef(uri("https://github.com/maprohu/scalajs-jsdocgen.git"), "lib")
 
 lazy val root = (project in file("."))
   .settings(noPublish)
