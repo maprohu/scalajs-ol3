@@ -39,9 +39,14 @@ val noPublish = Seq(
 lazy val facade = project
   .settings(commonSettings)
   .enablePlugins(JsdocPlugin, ScalaJSPlugin)
-  .dependsOn(jsdocgenLib)
+//  .dependsOn(jsdocgenLib)
   .settings(
+    publishArtifact in (Compile, packageDoc) := false,
     name := "scalajs-ol3",
+    jsdocRunSource := Some(
+      uri(s"https://github.com/openlayers/ol3.git#v${openlayersVersion}")
+    ),
+    jsdocRunInputs := Seq("src", "externs"),
     jsdocDocletsFile := (sourceDirectory in Compile).value / "jsdoc" / s"ol3-${openlayersVersion}-jsdoc.json",
     jsdocGlobalScope := Seq("ol3"),
     jsdocUtilScope := "pkg",
@@ -51,7 +56,9 @@ lazy val facade = project
     ),
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % "0.8.0"
-    )
+    ),
+    mappings in (Compile, packageSrc) ++=
+      (managedSources in Compile).value pair relativeTo((sourceManaged in Compile).value)
 
   )
 
@@ -68,7 +75,7 @@ lazy val testapp = project
 
   )
 
-lazy val jsdocgenLib = ProjectRef(uri("https://github.com/maprohu/scalajs-jsdocgen.git"), "lib")
+//lazy val jsdocgenLib = ProjectRef(uri("https://github.com/maprohu/scalajs-jsdocgen.git"), "lib")
 
 lazy val root = (project in file("."))
   .settings(noPublish)
