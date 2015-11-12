@@ -1,6 +1,39 @@
+val githubRepo = "scalajs-ol3"
+val openlayersVersion = "3.10.1"
+
 val commonSettings = Seq(
+  organization := "com.github.maprohu",
+  version := "0.1.0-SNAPSHOT",
+
   scalaVersion := "2.11.7",
-  organization := "com.github.maprohu"
+  publishMavenStyle := true,
+  publishTo := {
+    val nexus = "https://oss.sonatype.org/"
+    if (isSnapshot.value)
+      Some("snapshots" at nexus + "content/repositories/snapshots")
+    else
+      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+  },
+  pomIncludeRepository := { _ => false },
+  licenses := Seq("BSD-style" -> url("http://www.opensource.org/licenses/bsd-license.php")),
+  homepage := Some(url(s"https://github.com/maprohu/${githubRepo}")),
+  pomExtra := (
+      <scm>
+        <url>git@github.com:maprohu/{githubRepo}.git</url>
+        <connection>scm:git:git@github.com:maprohu/{githubRepo}.git</connection>
+      </scm>
+      <developers>
+        <developer>
+          <id>maprohu</id>
+          <name>maprohu</name>
+          <url>https://github.com/maprohu</url>
+        </developer>
+      </developers>
+    )
+)
+
+val noPublish = Seq(
+  publishArtifact := false
 )
 
 lazy val facade = project
@@ -9,12 +42,12 @@ lazy val facade = project
   .dependsOn(jsdocgenLib)
   .settings(
     name := "scalajs-ol3",
-    jsdocDocletsFile := (sourceDirectory in Compile).value / "jsdoc" / "ol3-3.10.1-jsdoc.json",
+    jsdocDocletsFile := (sourceDirectory in Compile).value / "jsdoc" / s"ol3-${openlayersVersion}-jsdoc.json",
     jsdocGlobalScope := Seq("ol3"),
     jsdocUtilScope := "pkg",
     sourceGenerators in Compile += jsdocGenerate.taskValue,
     jsDependencies ++= Seq(
-      "org.webjars" % "openlayers" % "3.10.1" / "webjars/openlayers/3.10.1/ol-debug.js" minified "webjars/openlayers/3.10.1/ol.js"
+      "org.webjars" % "openlayers" % openlayersVersion / s"webjars/openlayers/${openlayersVersion}/ol-debug.js" minified s"webjars/openlayers/${openlayersVersion}/ol.js"
     ),
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % "0.8.0"
@@ -24,6 +57,7 @@ lazy val facade = project
 
 lazy val testapp = project
   .settings(commonSettings)
+  .settings(noPublish)
   .enablePlugins(ScalaJSPlugin)
   .dependsOn(facade)
   .settings(
@@ -35,3 +69,7 @@ lazy val testapp = project
   )
 
 lazy val jsdocgenLib = ProjectRef(uri("https://github.com/maprohu/scalajs-jsdocgen.git"), "lib")
+
+lazy val root = (project in file("."))
+  .settings(noPublish)
+  .aggregate(facade, testapp)
