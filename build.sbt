@@ -6,7 +6,7 @@ val commonSettings = Seq(
 lazy val facade = project
   .settings(commonSettings)
   .enablePlugins(JsdocPlugin, ScalaJSPlugin)
-  .dependsOn(generatorLib)
+  .dependsOn(jsdocgenLib)
   .settings(
     name := "scalajs-ol3",
     jsdocDocletsFile := (sourceDirectory in Compile).value / "jsdoc" / "ol3-3.10.1-jsdoc.json",
@@ -34,4 +34,4 @@ lazy val testapp = project
 
   )
 
-lazy val generatorLib = ProjectRef(file("generator/lib"), "lib")
+lazy val jsdocgenLib = ProjectRef(uri("https://github.com/maprohu/scalajs-jsdocgen.git"), "lib")
