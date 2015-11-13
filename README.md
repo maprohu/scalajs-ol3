@@ -6,3 +6,4 @@
 Created by using the [jsdocgen](https://github.com/maprohu/scalajs-jsdocgen)
 plugin for [SBT](http://www.scala-sbt.org/).
 
+See an [example](https://github.com/maprohu/scalajs-ol3-demo).
