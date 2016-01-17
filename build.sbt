@@ -1,5 +1,5 @@
 val githubRepo = "scalajs-ol3"
-val openlayersVersion = "3.10.1"
+val openlayersVersion = "3.11.1"
 
 val commonSettings = Seq(
   organization := "com.github.maprohu",
