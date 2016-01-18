@@ -47,8 +47,11 @@ lazy val facade = project
     jsdocRunSource := Some(
       uri(s"https://github.com/openlayers/ol3.git#v${openlayersVersion}")
     ),
-    jsdocRunInputs := Seq("src", "externs"),
-    jsdocDocletsFile := (sourceDirectory in Compile).value / "jsdoc" / s"ol3-${openlayersVersion}-jsdoc.json",
+    jsdocRunInputs := Seq("src", "externs", "../../../../src/main/jsdoc/extra"),
+    jsdocRunTarget := (sourceDirectory in Compile).value / "jsdoc" / s"ol3-${openlayersVersion}-jsdoc.json",
+    jsdocDocletsFile := jsdocRunTarget.value,
+    jsdocSourceFileRoot := new File("D:\\\\git\\\\scalajs-ol3\\\\facade\\\\target\\\\jsdocgenwork\\\\d71ffeca6dc3732b93a5\\\\ol3").toURI,
+    jsdocSourcePublishRoot := uri(s"https://github.com/openlayers/ol3/blob/v${openlayersVersion}/"),
     jsdocGlobalScope := Seq("ol3"),
     jsdocUtilScope := "pkg",
     sourceGenerators in Compile += jsdocGenerate.taskValue,
