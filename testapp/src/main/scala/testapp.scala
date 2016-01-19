@@ -15,9 +15,6 @@ import org.scalajs.dom
 object TestApp extends JSApp {
   import ol3._
 
-
-//  implicit def imp(s: String) = s.asInstanceOf[UndefOr[ol3u.implicits.`olx.MapOptions#target`]]
-
   @JSExport
   override def main(): Unit = {
     import ol3.implicits._
