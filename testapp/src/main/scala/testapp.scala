@@ -32,7 +32,7 @@ object TestApp extends JSApp {
         ))
       ),
       view = new ol.View(ViewOptions(
-        center = ol.proj.pkg.fromLonLat(js.Array(37, 8)),
+        center = global.ol.proj.fromLonLat(js.Array(37.0, 8.0)),
         zoom = 4.0
       ))
     ))
