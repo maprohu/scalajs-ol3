@@ -15,9 +15,13 @@ import org.scalajs.dom
 object TestApp extends JSApp {
   import ol3._
 
+//  implicit def boo(elem: dom.raw.Element) : UndefOr[implicits.`java.lang.String|org.scalajs.dom.raw.Element`] =
+//    UndefOr.any2undefOrA(implicits.`java.lang.String|org.scalajs.dom.raw.Element`.`org.scalajs.dom.raw.Element -> java.lang.String|org.scalajs.dom.raw.Element`(elem))
+
+
   @JSExport
   override def main(): Unit = {
-    import ol3.implicits._
+//    import ol3.implicits._
 
     new ol.Map(olx.MapOptions(
       target = dom.document.getElementById("map"),
@@ -27,7 +31,7 @@ object TestApp extends JSApp {
             layer = "sat"
           ))
         ))
-      ),
+      ).asInstanceOf[implicits.`scala.scalajs.js.Any|scala.scalajs.js.Array[ol3.ol.layer.Base]`],
       view = new ol.View(ViewOptions(
         center = global.ol.proj.fromLonLat(js.Array(37.0, 8.0)),
         zoom = 4.0
